@@ -1,2 +1,2 @@
 # ps-cat
-Powershell scripts and snippets
+powershell scripts and snippets to remember
