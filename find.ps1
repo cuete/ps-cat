@@ -26,5 +26,6 @@ if ($q)
 if ($e)
 {
     #File text third
+    Write-Host "Searching file contents..." -ForegroundColor $fcolor
     Get-ChildItem $path -Recurse -Filter $filter -Exclude *.exe,*.dll | Select-String $text | Select-Object Path,Linenumber,Line | Format-Table $_.Value
 }
