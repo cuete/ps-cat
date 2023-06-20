@@ -41,7 +41,7 @@ Export-ModuleMember -Function Show-MachineStats
 
 # Queries wttr.in for weather in $locations (comma separated string)
 function Show-Weather {
-    $locations = "coupeville+wa,mukilteo+wa,redmond+wa,seattle+wa"
+    $locations = "seattle+wa,paris,london,dubai,beijing"
     $weatherInfo = curl -s "wttr.in/{$locations}?format=%l:+%c+%t+%p+%w\n"
     $weatherResults = @()
     
