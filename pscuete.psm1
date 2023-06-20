@@ -1,9 +1,48 @@
 # cuete's personal powershell module
 
+# Reboots the computer now
+function Restart-Compu
+{
+    shutdown.exe /r /t 0
+}
+Export-ModuleMember -Function Restart-Compu
+
+# Sleeps the computer now
+function Suspend-Compu
+{
+    rundll32.exe powrprof.dll, SetSuspendState Sleep
+}
+Export-ModuleMember -Function Suspend-Compu
+
+# Shows current local, UTC and epoch times
+function Show-TimeDate
+{
+    $date = Get-Date
+    $utcdate = $date.ToUniversalTime()
+    $posixdate = Get-Date -UFormat %s
+
+    Write-Host Local Time: $date -ForegroundColor $fcolor
+    Write-Host UTC Time: $utcdate  -ForegroundColor $fcolor
+    Write-Host Epoch: $posixdate`n  -ForegroundColor $fcolor
+}
+Export-ModuleMember -Function Show-TimeDate
+
+# Shows computer processor, memory and battery stats
+function Show-MachineStats
+{
+    $proc = Get-CimInstance CIM_Processor |  Select-Object -ExpandProperty LoadPercentage
+    $mem = Get-CimInstance Win32_OperatingSystem | Select-Object -ExpandProperty FreePhysicalMemory
+    $batt = (Get-WmiObject win32_battery).estimatedChargeRemaining
+    Write-Host Processor usage: ($proc)% -ForegroundColor $fcolor
+    Write-Host Free Memory: ($mem/1000000) Gb  -ForegroundColor $fcolor
+    Write-Host Battery remaining: ($batt)%`n  -ForegroundColor $fcolor
+}
+Export-ModuleMember -Function Show-MachineStats
+
 # Queries wttr.in for weather in $locations (comma separated string)
 function Show-Weather {
-    $locations = 'seattle+wa,london'
-    $weatherInfo = curl -s "wttr.in/{$($locations)}?format=%l:+%c+%t+%p+%w\n"
+    $locations = "coupeville+wa,mukilteo+wa,redmond+wa,seattle+wa"
+    $weatherInfo = curl -s "wttr.in/{$locations}?format=%l:+%c+%t+%p+%w\n"
     $weatherResults = @()
     
     foreach($w in $weatherInfo)
@@ -32,10 +71,9 @@ function Show-Weather {
     $weatherResults | Format-Table -AutoSize
 }
 Export-ModuleMember -Function Show-Weather
-Set-Item -Path alias:weather -Value Show-Weather
 
 # Tests internet connection and displays IP address
-# Optionally runs a speed test using the speedtest python module https://pypi.org/project/speedtest-cli/
+# Optionally runs speedtest using the speedtest python module https://pypi.org/project/speedtest-cli/
 function Get-Ip {
     Param ([switch]$speedtest=$false)
 
@@ -55,8 +93,6 @@ function Get-Ip {
     }
 }
 Export-ModuleMember -Function Get-Ip
-Set-Item -Path alias:ip -Value Get-Ip
-Set-Item -Path alias:internet -Value Get-Ip -speedtest
 
 # Finds a sgtring in a file or directory name
 # Optionally searches within files
@@ -91,7 +127,6 @@ function Find-Text
     }
 }
 Export-ModuleMember -Function Find-Text
-Set-Item -Path alias:find -Value Find-Text
 
 # Queries the Bing API
 # Optionally selects a news filter
@@ -136,7 +171,6 @@ function Search-Bing
     }
 }
 Export-ModuleMember -Function Search-Bing
-Set-Item -Path alias:wut -Value Search-Bing
 
 # Acts as a virtual clipboard for files in conjunction with Paste-File
 # copies the file path to a global variable (string list) acting as a stack
@@ -168,12 +202,11 @@ function Copy-File
     }
 }
 Export-ModuleMember -Function Copy-File
-Set-Item -Path alias:copi -Value Copy-File
 
 # Acts as a virtual clipboard for files in conjunction with Copy-File
 # pastes the file referenced at the top of the stack of the global variable (string list) into the current directory
 # Use Copy-File to copy the source file path
-function Paste-File
+function Write-File
 {
     Param (
         [Parameter()]
@@ -200,5 +233,4 @@ function Paste-File
         }
     }
 }
-Export-ModuleMember -Function Paste-File
-Set-Item -Path alias:peis -Value Paste-File
+Export-ModuleMember -Function Write-File
