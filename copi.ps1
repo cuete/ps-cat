@@ -20,9 +20,10 @@ if(!$global:fileList)
     [Collections.Generic.List[String]]$global:fileList = @()
 }
 $sourcePath = Get-Location | Select-Object -ExpandProperty  Path
+$global:fileList += $sourcePath + '\' + $filename
+
 Write-Host "Added to clipboard, stack is: "
 foreach ($file in $global:fileList)
 {
     Write-Host "`t$($file)"
 }
-$global:fileList += $sourcePath + '\' + $filename

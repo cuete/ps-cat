@@ -4,6 +4,12 @@
 # in the current directory
 # Use copi.ps1 to copy the source file path
 
+Param (
+    [Parameter()]
+    [Alias('k')]
+    [switch]$keep = $false
+)
+
 if (Test-Path variable:global:fileArray && $global:fileList)
 {
     $fileData = $global:fileList[0].split('\')
@@ -16,5 +22,9 @@ if (Test-Path variable:global:fileArray && $global:fileList)
     {
         Copy-Item -Path $global:fileList[0] -Destination ($destinationFile)
     }
-    $global:fileList.RemoveAt(0)
+
+    if(!$keep)
+    {
+        $global:fileList.RemoveAt(0)
+    }
 }
