@@ -1,0 +1,12 @@
+{
+    "locations" : [
+        {
+            "name" : "Seattle",
+            "lat" : "47.65",
+            "lon" : "-122.35",
+            "gridx" : 124,
+            "gridy" : 70,
+            "office" : "SEW"
+        }
+    ]
+}

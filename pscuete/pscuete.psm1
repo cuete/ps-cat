@@ -39,36 +39,63 @@ function Show-MachineStats
 }
 Export-ModuleMember -Function Show-MachineStats
 
-# Queries wttr.in for weather in $locations (comma separated string)
+# Queries the NOAA's weather API (https://www.weather.gov/documentation/services-web-api)
+# in all location listed on weatherlocations.json
 function Show-Weather {
-    $locations = "seattle+wa,paris,london,dubai,beijing"
-    $weatherInfo = curl -s "wttr.in/{$locations}?format=%l:+%c+%t+%p+%w\n"
-    $weatherResults = @()
+    Param (
+        [switch]$h = $false)
     
-    foreach($w in $weatherInfo)
+    $locationData = Get-Content "weatherlocations.json" | Out-String | ConvertFrom-Json
+    
+    $endpoint = "forecast"
+    if($h)
     {
-        $segments = $w -split "\s+"
-        $city = $segments[0]
-        $weather = $segments[1]
-        $temperatureF = $segments[2]
-        $precipitation = $segments[3]
-        $wind = $segments[4]
-    
-        $temperatureF = $temperatureF -replace "\D", ""
-        $temperatureC = [int][math]::Round(($temperatureF - 32) * 5 / 9, 0)
-    
-        $weatherObject = [PSCustomObject]@{
-            City = $city
-            Weather = $weather
-            TempF = $temperatureF
-            TempC = $temperatureC
-            Precip = $precipitation
-            Wind = $wind
-        }
-        $weatherResults += $weatherObject
+        $endpoint += "/hourly"
     }
     
-    $weatherResults | Format-Table -AutoSize
+    $weathers = @()
+    
+    foreach($location in $locationData.locations)
+    {
+        $office = $location.office
+        $gridx = $location.gridx
+        $gridy = $location.gridy
+        $headers = @{
+            "Accept" = "application/geo+json"
+            "User-Agent" = "(appid, email@email.com)" # This info identifies you to the API
+        }
+        $url = "https://api.weather.gov/gridpoints/$office/$gridx,$gridy/$endpoint"
+        $weather = Invoke-RestMethod -Uri $url -Method Get -Headers $headers
+        
+        $w = $weather.properties.periods[0]
+        $weatherObject = [PSCustomObject]@{
+            location = $location.name
+            when = $w.name
+            sTime = [DateTime]$w.startTime
+            eTime = [DateTime]$w.endTime
+            tF = $w.temperature
+            tC = [int][math]::Round(($w.temperature - 32) * 5 / 9, 0)
+            hum = $w.relativeHumidity.value
+            prec = $w.probabilityOfPrecipitation.value
+            windS = $w.windSpeed
+            windD = $w.windDirection
+            shortF = $w.shortForecast
+            detailedForecast = $w.detailedForecast
+        }
+        $weathers += $weatherObject
+    }
+    
+    Write-Host "`n $($weathers[0].sTime) - $($weathers[0].eTime)"
+    
+    if($h)
+    {
+        $weathers.startTime
+        $weathers | Select-Object -Property location, tC, hum, prec, windS, windD, shortF | Format-Table -Wrap -AutoSize
+    }
+    else
+    {
+        $weathers | Select-Object -Property location, when, tC, hum, prec, windS, windD, shortF, detailedForecast | Format-Table -Wrap -AutoSize
+    }
 }
 Export-ModuleMember -Function Show-Weather
 
