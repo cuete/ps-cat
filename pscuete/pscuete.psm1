@@ -41,61 +41,95 @@ Export-ModuleMember -Function Show-MachineStats
 
 # Queries the NOAA's weather API (https://www.weather.gov/documentation/services-web-api)
 # in all location listed on weatherlocations.json
+# Location query by city name needs Bing Maps API Key
 function Show-Weather {
     Param (
-        [switch]$h = $false)
-    
-    $locationData = Get-Content "weatherlocations.json" | Out-String | ConvertFrom-Json
-    
-    $endpoint = "forecast"
-    if($h)
-    {
-        $endpoint += "/hourly"
+        [switch]$h = $false,
+        [string]$l)
+
+    $headers = @{
+        "Accept" = "application/geo+json"
+        "User-Agent" = "(appid, email@email.com)" # Update this info, it identifies you to the API
     }
-    
-    $weathers = @()
-    
-    foreach($location in $locationData.locations)
+
+    $locationdata =  [PSCustomObject]@{
+        locations =  [PSCustomObject]@()
+    }
+
+    if($l) # Resquested location
     {
-        $office = $location.office
-        $gridx = $location.gridx
-        $gridy = $location.gridy
-        $headers = @{
-            "Accept" = "application/geo+json"
-            "User-Agent" = "(appid, email@email.com)" # This info identifies you to the API
-        }
-        $url = "https://api.weather.gov/gridpoints/$office/$gridx,$gridy/$endpoint"
+        $BingMapsKey = '' # Your Bing Maps API Key
+        $LocationQuery = $l
+
+        $uri = "http://dev.virtualearth.net/REST/v1/Locations?query=$($LocationQuery)&key=$($BingMapsKey)"
+        $response = Invoke-RestMethod -Method Get -Uri $uri
+        $lat = $response.resourceSets.resources.point.coordinates[0]
+        $lon = $response.resourceSets.resources.point.coordinates[1]
+
+        $url = $url = "https://api.weather.gov/points/$($lat),$($lon)"
         $weather = Invoke-RestMethod -Uri $url -Method Get -Headers $headers
-        
-        $w = $weather.properties.periods[0]
-        $weatherObject = [PSCustomObject]@{
-            location = $location.name
-            when = $w.name
-            sTime = [DateTime]$w.startTime
-            eTime = [DateTime]$w.endTime
-            tF = $w.temperature
-            tC = [int][math]::Round(($w.temperature - 32) * 5 / 9, 0)
-            hum = $w.relativeHumidity.value
-            prec = $w.probabilityOfPrecipitation.value
-            windS = $w.windSpeed
-            windD = $w.windDirection
-            shortF = $w.shortForecast
-            detailedForecast = $w.detailedForecast
+
+        $locationData.locations += [PSCustomObject]@{
+            name = $LocationQuery
+            lat = $lat
+            lon = $lon
+            gridx = $weather.properties.gridx
+            gridy = $weather.properties.gridy
+            office = $weather.properties.gridid
         }
-        $weathers += $weatherObject
+
+    }
+    else # Default locations
+    {
+        $locationData = Get-Content "weatherlocations.json" | Out-String | ConvertFrom-Json
     }
     
-    Write-Host "`n $($weathers[0].sTime) - $($weathers[0].eTime)"
+$endpoint = "forecast"
+if($h)
+{
+    $endpoint += "/hourly"
+}
+
+$weathers = @()
+
+foreach($location in $locationData.locations)
+{
+    $office = $location.office
+    $gridx = $location.gridx
+    $gridy = $location.gridy
+
+    $url = "https://api.weather.gov/gridpoints/$office/$gridx,$gridy/$endpoint"
+    $weather = Invoke-RestMethod -Uri $url -Method Get -Headers $headers
     
-    if($h)
-    {
-        $weathers.startTime
-        $weathers | Select-Object -Property location, tC, hum, prec, windS, windD, shortF | Format-Table -Wrap -AutoSize
+    $w = $weather.properties.periods[0]
+    $weatherObject = [PSCustomObject]@{
+        location = $location.name
+        when = $w.name
+        sTime = [DateTime]$w.startTime
+        eTime = [DateTime]$w.endTime
+        tF = $w.temperature
+        tC = [int][math]::Round(($w.temperature - 32) * 5 / 9, 0)
+        hum = $w.relativeHumidity.value
+        prec = $w.probabilityOfPrecipitation.value
+        windS = $w.windSpeed
+        windD = $w.windDirection
+        shortF = $w.shortForecast
+        detailedForecast = $w.detailedForecast
     }
-    else
-    {
-        $weathers | Select-Object -Property location, when, tC, hum, prec, windS, windD, shortF, detailedForecast | Format-Table -Wrap -AutoSize
-    }
+    $weathers += $weatherObject
+}
+
+Write-Host "`n $($weathers[0].sTime) - $($weathers[0].eTime)"
+
+if($h)
+{
+    $weathers.startTime
+    $weathers | Select-Object -Property location, tC, hum, prec, windS, windD, shortF | Format-Table -Wrap -AutoSize
+}
+else
+{
+    $weathers | Select-Object -Property location, when, tC, hum, prec, windS, windD, shortF, detailedForecast | Format-Table -Wrap -AutoSize
+}
 }
 Export-ModuleMember -Function Show-Weather
 
