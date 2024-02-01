@@ -297,10 +297,9 @@ function Write-File
 Export-ModuleMember -Function Write-File
 
 # Changes the display scale of the system
-# The follwing values might change depending on the specific display's resolution, since '0' is the recommended scale for a given display:
-# 0 = 100% (default or recommended)
-# 1 = 125% 
-# 2 = 150%... etc.
+# The actual int vs % changes depending on the specific display's resolution
+# '0' is the recommended scale for a given display and then it goes up in 25% increments
+# If less than the recommended scale is needed, it gets weird. 4294967295 is -25% (if supported by the display)
 function Set-DisplayScale
 {
     Param($s=0)
