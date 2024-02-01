@@ -296,12 +296,13 @@ function Write-File
 }
 Export-ModuleMember -Function Write-File
 
+# Changes the display scale of the system
+# The follwing values might change depending on the specific display's resolution, since '0' is the recommended scale for a given display:
+# 0 = 100% (default or recommended)
+# 1 = 125% 
+# 2 = 150%... etc.
 function Set-DisplayScale
 {
-    # scaling = 0 : 100% (default)
-    # scaling = 1 : 125% 
-    # scaling = 2 : 150% 
-    # scaling = 3 : 175% 
     Param($s=0)
     $source = @'
     [DllImport("user32.dll", EntryPoint = "SystemParametersInfo")]
