@@ -328,21 +328,29 @@ function Get-Secret
 
     try
     {
-        $secret = Get-AzKeyVaultSecret -VaultName $KVName -Name $name
-        if($secret)
+        if(!$name)
         {
-            $secretString = $secret.SecretValue | ConvertFrom-SecureString -AsPlainText
-            $secretString + " copied to clipboard"
-            Set-Clipboard -Value $secretString
+            Get-AzKeyVaultSecret -VaultName $KVName | Select-Object -ExpandProperty Name
+            return
         }
         else
         {
-            throw "Secret not found in KV"
+            $secret = Get-AzKeyVaultSecret -VaultName $KVName -Name $name
+            if($secret)
+            {
+                $secretString = $secret.SecretValue | ConvertFrom-SecureString -AsPlainText
+                $secretString + " copied to clipboard"
+                Set-Clipboard -Value $secretString
+            }
+            else
+            {
+                throw "Secret not found in KV"
+            }
         }
     }
     catch
     {
-        throw "Secret not found in KV"
+        $_.Exception.Message
     }
 }
 
@@ -412,7 +420,7 @@ function Invoke-SecretManager
         "get" { Get-Secret -name $name -KVName $KVName }
         "update" { Update-Secret -name $name -secretinput $secretinput -KVName $KVName}
         "remove" { Remove-Secret -name $name -KVName $KVName }
-        default { "Invalid operation" }
+        default { "Invalid operation - " + $operation }
     }
 }
 Export-ModuleMember -Function Invoke-SecretManager
