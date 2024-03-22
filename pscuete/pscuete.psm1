@@ -315,3 +315,104 @@ function Set-DisplayScale
     $apicall::SystemParametersInfo(0x009F, $s, $null, 1) | Out-Null
 }
 Export-ModuleMember -Function Set-DisplayScale
+
+# Manages secrets in Azure Key Vault; get, update and remove
+function Get-Secret
+{
+    Param (   
+        [Parameter()]
+        [string]$name,
+        [Parameter()]
+        [string]$KVName
+    )
+
+    try
+    {
+        $secret = Get-AzKeyVaultSecret -VaultName $KVName -Name $name
+        if($secret)
+        {
+            $secretString = $secret.SecretValue | ConvertFrom-SecureString -AsPlainText
+            $secretString + " copied to clipboard"
+            Set-Clipboard -Value $secretString
+        }
+        else
+        {
+            throw "Secret not found in KV"
+        }
+    }
+    catch
+    {
+        throw "Secret not found in KV"
+    }
+}
+
+function Update-Secret
+{
+    Param (   
+        [Parameter()]
+        [string]$name,
+        [Parameter()]
+        [string]$secretinput,
+        [Parameter()]
+        [string]$KVName
+    )
+
+    try
+    {
+        $secretvalue = ConvertTo-SecureString $secretinput -AsPlainText -Force
+        $secret = Set-AzKeyVaultSecret -VaultName $KVName -Name $name -SecretValue $secretvalue
+        $secret.Name + " updated in KV"
+    }
+    catch
+    {
+        $_.Exception.Message
+    }
+}
+
+function Remove-Secret
+{
+    Param (   
+        [Parameter()]
+        [string]$name,
+        [Parameter()]
+        [string]$KVName
+    )
+
+    try
+    {
+        Remove-AzKeyVaultSecret -VaultName $KVName -Name $name #Soft-delete
+        Remove-AzKeyVaultSecret -VaultName $KVName -Name $name -Force -InRemovedState #Purge
+        $secret.Name + " removed from KV"
+    }
+    catch
+    {
+        $_.Exception.Message
+    }
+}
+
+function Invoke-SecretManager
+{
+    Param (
+        [Parameter(Position=0)]
+        [string]$operation,
+        [Parameter()]
+        [Alias('n')]
+        [string]$name,
+        [Parameter()]
+        [Alias('s')]
+        [string]$secretinput
+    )
+
+    # Connect-AzAccount
+    # Set-AzContext
+
+    $KVName = "<your keyvault name>"
+    switch ($operation)
+    {
+        "get" { Get-Secret -name $name -KVName $KVName }
+        "update" { Update-Secret -name $name -secretinput $secretinput -KVName $KVName}
+        "remove" { Remove-Secret -name $name -KVName $KVName }
+        default { "Invalid operation" }
+    }
+}
+Export-ModuleMember -Function Invoke-SecretManager
