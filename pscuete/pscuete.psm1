@@ -199,7 +199,6 @@ function Search-Bing
     [string]$query,
     [Parameter(Mandatory=$false)]
     [switch]$news=$false,
-    [Parameter(Mandatory=$false)]
     [int]$answercount = 3
     )
 
@@ -322,7 +321,6 @@ function Get-Secret
     Param (   
         [Parameter()]
         [string]$name,
-        [Parameter()]
         [string]$KVName
     )
 
@@ -359,9 +357,7 @@ function Update-Secret
     Param (   
         [Parameter()]
         [string]$name,
-        [Parameter()]
         [string]$secretinput,
-        [Parameter()]
         [string]$KVName
     )
 
@@ -382,7 +378,6 @@ function Remove-Secret
     Param (   
         [Parameter()]
         [string]$name,
-        [Parameter()]
         [string]$KVName
     )
 
@@ -406,7 +401,6 @@ function Invoke-SecretManager
         [Parameter()]
         [Alias('n')]
         [string]$name,
-        [Parameter()]
         [Alias('s')]
         [string]$secretinput
     )
@@ -424,3 +418,144 @@ function Invoke-SecretManager
     }
 }
 Export-ModuleMember -Function Invoke-SecretManager
+
+# Manages blobs in Azure Storage; get, update and remove
+# Upload a blob
+function Set-File
+{
+    Param (
+        [Parameter()]
+        [Alias('f')]
+        [string]$filepath,
+        [Alias('t')]
+        [string]$tag,
+        [Alias('dir')]
+        [string]$folder,
+        [string]$Context,
+        [string]$ContainerName
+    )
+    try
+    {
+        $tags = @{Classification = $tag}
+        $filename = $filepath.Split('\')[-1]
+        if($folder)
+        {
+            $filename = $folder + '/' + $filename
+        }
+        $blob = @{
+            File             = $filepath
+            Container        = $ContainerName
+            Blob             = $filename
+            Context          = $Context
+            StandardBlobTier = 'Cool'
+            Tag              = $tags}
+    }
+    catch
+    {
+        throw $_.Exception.Message
+    }
+    Set-AzStorageBlobContent @blob
+    $filepath + " uploaded to storage"
+}
+
+# List blobs
+function Get-Files
+{
+    Param (
+        [Parameter()]
+        [Alias('tf')]
+        [string]$tagfilter,
+        [string]$Context,
+        [string]$ContainerName
+    )
+
+    try
+    {
+        $blobs = Get-AzStorageBlob -Container $ContainerName -Context $Context -IncludeTag | Where-Object { $_.Tags.Classification -match $tagfilter }
+        $blobs | Select-Object Name, LastModified, Tags | Format-Table -AutoSize 
+    }
+    catch
+    {
+        throw $_.Exception.Message
+    }
+}
+
+# Download a blob
+function Save-File
+{
+    Param (
+        [Parameter()]
+        [Alias('f')]
+        [string]$filename,
+        [string]$Context,
+        [string]$ContainerName
+    )
+    try
+    {
+        $blob = @{
+            Blob        = $filename
+            Container   = $ContainerName
+            Destination = $filename.Split('/')[-1]
+            Context     = $Context
+          }
+        Get-AzStorageBlobContent @blob | Out-Null
+        $filename + " downloaded from storage"
+    }
+    catch
+    {
+        throw $_.Exception.Message
+    }
+}
+
+# Delete a blob
+function Remove-File
+{
+    Param (
+        [Parameter()]
+        [Alias('f')]
+        [string]$filename,
+        [string]$Context,
+        [string]$ContainerName
+    )
+    try
+    {
+        Remove-AzStorageBlob -Blob $filename -Container $ContainerName -Context $Context
+        $filename + " deleted from storage"
+    }
+    catch
+    {
+        throw $_.Exception.Message
+    }
+}
+
+function Invoke-BlobManager
+{
+    Param (
+        [Parameter(Position=0)]
+        [string]$operation,
+        [Parameter()]
+        [Alias('f')]
+        [string]$filepath,
+        [Alias('t')]
+        [string]$tag = 'none',
+        [Alias('tf')]
+        [string]$tagfilter,
+        [Alias('dir')]
+        [string]$folder)
+
+    $StorageAccountName = '<storage account name>'
+    $StorageAccountKey = '<storage key>'
+    $ContainerName = '<container name>'
+    $Context = New-AzStorageContext -StorageAccountName $StorageAccountName -StorageAccountKey $StorageAccountKey
+
+    switch ($operation)
+    {
+        "list" { Get-Files -tf $tagfilter -ContainerName $ContainerName -Context $Context }
+        "upload" { Set-File -f $filepath -t $tag -dir $folder -ContainerName $ContainerName -Context $Context }
+        "download" { Save-File -f $filepath -ContainerName $ContainerName -Context $Context }
+        "delete" { Remove-File -f $filepath -ContainerName $ContainerName -Context $Context }
+        default { "Invalid operation - " + $operation }
+    }
+
+}
+Export-ModuleMember -Function Invoke-BlobManager
