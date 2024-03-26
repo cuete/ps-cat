@@ -449,12 +449,12 @@ function Set-Blob
             Context          = $Context
             StandardBlobTier = 'Cool'
             Tag              = $tags}
+        Set-AzStorageBlobContent @blob | Out-Null
     }
     catch
     {
         throw $_.Exception.Message
     }
-    Set-AzStorageBlobContent @blob
     $filepath + " uploaded to storage"
 }
 
