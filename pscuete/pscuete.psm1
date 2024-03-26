@@ -425,11 +425,8 @@ function Set-Blob
 {
     Param (
         [Parameter()]
-        [Alias('f')]
         [string]$filepath,
-        [Alias('t')]
         [string]$tag,
-        [Alias('dir')]
         [string]$folder,
         [string]$Context,
         [string]$ContainerName
@@ -463,7 +460,6 @@ function Get-Blobs
 {
     Param (
         [Parameter()]
-        [Alias('tf')]
         [string]$tagfilter,
         [string]$Context,
         [string]$ContainerName
@@ -485,7 +481,6 @@ function Save-Blob
 {
     Param (
         [Parameter()]
-        [Alias('f')]
         [string]$filename,
         [string]$Context,
         [string]$ContainerName
@@ -512,7 +507,6 @@ function Remove-Blob
 {
     Param (
         [Parameter()]
-        [Alias('f')]
         [string]$filename,
         [string]$Context,
         [string]$ContainerName
@@ -550,10 +544,10 @@ function Invoke-BlobManager
 
     switch ($operation)
     {
-        "list" { Get-Blobs -tf $tagfilter -ContainerName $ContainerName -Context $Context }
-        "upload" { Set-Blob -f $filepath -t $tag -dir $folder -ContainerName $ContainerName -Context $Context }
-        "download" { Save-Blob -f $filepath -ContainerName $ContainerName -Context $Context }
-        "delete" { Remove-Blob -f $filepath -ContainerName $ContainerName -Context $Context }
+        "list" { Get-Blobs -tagfilter $tagfilter -ContainerName $ContainerName -Context $Context }
+        "upload" { Set-Blob -filepath $filepath -tag $tag -folder $folder -ContainerName $ContainerName -Context $Context }
+        "download" { Save-Blob -filename $filepath -ContainerName $ContainerName -Context $Context }
+        "delete" { Remove-Blob -filename $filepath -ContainerName $ContainerName -Context $Context }
         default { "Invalid operation - " + $operation }
     }
 
