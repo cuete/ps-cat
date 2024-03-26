@@ -421,7 +421,7 @@ Export-ModuleMember -Function Invoke-SecretManager
 
 # Manages blobs in Azure Storage; get, update and remove
 # Upload a blob
-function Set-File
+function Set-Blob
 {
     Param (
         [Parameter()]
@@ -459,7 +459,7 @@ function Set-File
 }
 
 # List blobs
-function Get-Files
+function Get-Blobs
 {
     Param (
         [Parameter()]
@@ -481,7 +481,7 @@ function Get-Files
 }
 
 # Download a blob
-function Save-File
+function Save-Blob
 {
     Param (
         [Parameter()]
@@ -508,7 +508,7 @@ function Save-File
 }
 
 # Delete a blob
-function Remove-File
+function Remove-Blob
 {
     Param (
         [Parameter()]
@@ -550,10 +550,10 @@ function Invoke-BlobManager
 
     switch ($operation)
     {
-        "list" { Get-Files -tf $tagfilter -ContainerName $ContainerName -Context $Context }
-        "upload" { Set-File -f $filepath -t $tag -dir $folder -ContainerName $ContainerName -Context $Context }
-        "download" { Save-File -f $filepath -ContainerName $ContainerName -Context $Context }
-        "delete" { Remove-File -f $filepath -ContainerName $ContainerName -Context $Context }
+        "list" { Get-Blobs -tf $tagfilter -ContainerName $ContainerName -Context $Context }
+        "upload" { Set-Blob -f $filepath -t $tag -dir $folder -ContainerName $ContainerName -Context $Context }
+        "download" { Save-Blob -f $filepath -ContainerName $ContainerName -Context $Context }
+        "delete" { Remove-Blob -f $filepath -ContainerName $ContainerName -Context $Context }
         default { "Invalid operation - " + $operation }
     }
 
