@@ -20,6 +20,34 @@
     }
     $object | Add-Member -Name Property1 -Value $value
 
+# Operators
+    #Equality
+    -eq - equals
+    -ne - not equals
+    -gt - greater than
+    -ge - greater than or equal
+    -lt - less than
+    -le - less than or equal
+
+    #Matching
+    -like - string matches wildcard pattern
+    -notlike - string doesn't match wildcard pattern
+    -match - string matches regex pattern
+    -notmatch - string doesn't match regex pattern
+
+    #Replacement
+    -replace - replaces strings matching a regex pattern
+
+    #Containment
+    -contains - collection contains a value
+    -notcontains - collection doesn't contain a value
+    -in - value is in a collection
+    -notin - value isn't in a collection
+
+    #Type
+    -is - both objects are the same type
+    -isnot - the objects aren't the same type
+
 # Parameters
     Param (
         [Parameter(Position=0)(Mandatory=$true)]
@@ -41,9 +69,9 @@
 
     | Format-List
 
-    | Sort-Object Property
+    | Sort-Object Property -Descending
 
-    | Select-Object Property -last 1
+    | Select-Object -Last 5
 
     | Out-File -FilePath $filepath
     $text = Get-Content $filepath | Out-String | ConvertFrom-Json
@@ -63,6 +91,9 @@
     Get-Date -Format "yyyyMMddHHmm"
 
     -ErrorAction SilentlyContinue
+
+    Get-Process | Where-Object { $_.CPU -gt 5} | Sort-Object CPU -Descending | Select-Object -First 15
+    Stop-Process -Id $id
 
 # Snippets
     foreach ($item in $array)

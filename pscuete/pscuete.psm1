@@ -428,7 +428,7 @@ function Set-Blob
         [string]$filepath,
         [string]$tag,
         [string]$folder,
-        [string]$Context,
+        [Object]$Context,
         [string]$ContainerName
     )
     try
@@ -461,7 +461,7 @@ function Get-Blobs
     Param (
         [Parameter()]
         [string]$tagfilter,
-        [string]$Context,
+        [Object]$Context,
         [string]$ContainerName
     )
 
@@ -482,7 +482,7 @@ function Save-Blob
     Param (
         [Parameter()]
         [string]$filename,
-        [string]$Context,
+        [Object]$Context,
         [string]$ContainerName
     )
     try
@@ -508,7 +508,7 @@ function Remove-Blob
     Param (
         [Parameter()]
         [string]$filename,
-        [string]$Context,
+        [Object]$Context,
         [string]$ContainerName
     )
     try
