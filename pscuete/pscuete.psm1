@@ -316,6 +316,7 @@ function Set-DisplayScale
 Export-ModuleMember -Function Set-DisplayScale
 
 # Manages secrets in Azure Key Vault; get, update and remove
+# Get a secret or list secrets from Key Vault
 function Get-Secret
 {
     Param (   
@@ -352,6 +353,7 @@ function Get-Secret
     }
 }
 
+# Upsert a secret in Key Vault
 function Update-Secret
 {
     Param (   
@@ -373,6 +375,7 @@ function Update-Secret
     }
 }
 
+# Remove a secret from Key Vault
 function Remove-Secret
 {
     Param (   
@@ -405,8 +408,12 @@ function Invoke-SecretManager
         [string]$secretinput
     )
 
-    # Connect-AzAccount
-    # Set-AzContext
+    # Validate if Azure is connected
+    if ([string]::IsNullOrEmpty($(Get-AzContext).Name))
+    {
+        Connect-AzAccount
+        Set-AzContext -Subscription "<subscription name>"
+    }
 
     $KVName = "<your keyvault name>"
     switch ($operation)
@@ -553,3 +560,52 @@ function Invoke-BlobManager
 
 }
 Export-ModuleMember -Function Invoke-BlobManager
+
+# Manages queues in Azure Storage; get, push and pop
+# Push message to storage queue
+function Push-QueueMessage
+{
+    Param (
+        [Parameter()]
+        [string]$message,
+        [Object]$Context)
+
+    $queueMessage = [Microsoft.Azure.Storage.Queue.CloudQueueMessage]::new($message)
+    $queue = Get-AzStorageQueue -Context $Context
+    $queue.CloudQueue.AddMessageAsync($queueMessage).Wait()
+    "Pushed `"$message`" to queue"
+}
+
+# Pop message from storage queue
+function Pop-QueueMessage
+{
+    Param (
+        [Parameter()]
+        [Object]$Context)
+
+    $queue = Get-AzStorageQueue -Context $Context
+    $queueMessage = $queue.CloudQueue.GetMessageAsync().Result
+    Set-Clipboard -Value $queueMessage.AsString
+    "`"$($queueMessage.AsString)`" copied to clipboard"
+}
+
+function Invoke-QueueManager
+{
+    Param (
+        [Parameter(Position=0)]
+        [string]$operation,
+        [Parameter()]
+        [Alias('m')]
+        [string]$message)
+
+    $StorageAccountName = '<storage account name>'
+    $StorageAccountKey = '<storage key>`'
+    $Context = New-AzStorageContext -StorageAccountName $StorageAccountName -StorageAccountKey $StorageAccountKey
+    switch ($operation)
+    {
+        "pop" { Pop-QueueMessage -Context $Context }
+        "push" { Push-QueueMessage -message $message -Context $Context }
+        default { "Invalid operation - " + $operation }
+    }
+}
+Export-ModuleMember -Function Invoke-QueueManager
