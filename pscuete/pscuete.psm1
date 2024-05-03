@@ -144,12 +144,14 @@ function Get-Ip {
     }
     else {
         Write-Host "Connection status: $($conn.Status) ($($conn.Latency)ms)`n" -ForegroundColor $fcolor
-        $ip = Invoke-WebRequest https://api.ipify.org?format=json | Select-Object -ExpandProperty Content | ConvertFrom-Json
-        Write-Host "My IP address is $($ip.ip)`n" -ForegroundColor $fcolor
+        $ipv4 = Invoke-WebRequest https://api.ipify.org?format=json | Select-Object -ExpandProperty Content | ConvertFrom-Json
+        $ipv6 = Invoke-WebRequest https://api64.ipify.org?format=json | Select-Object -ExpandProperty Content | ConvertFrom-Json
+        Write-Host "IPv4 $($ipv4.ip)`nIPv6 $($ipv6.ip)`n" -ForegroundColor $fcolor
         if($speedtest)
         {
             Write-Host "Testing connection speed...`n" -ForegroundColor $fcolor
-            Invoke-Expression "python C:\python310\lib\site-packages\speedtest.py --single --simple"
+            # Speed test script from https://github.com/sivel/speedtest-cli
+            Invoke-Expression "python <path to script>\speedtest.py --single --simple"
         }
     }
 }
