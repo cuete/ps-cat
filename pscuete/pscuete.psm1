@@ -141,17 +141,17 @@ function Get-Ip {
 
     $wifiAdapter = Get-NetAdapter | Where-Object {$_.Name -like "*Wi-Fi*"}
     $defaultGateway = Get-NetIPConfiguration -InterfaceIndex $wifiAdapter.InterfaceIndex | Select-Object -ExpandProperty IPv4DefaultGateway | Select-Object -ExpandProperty NextHop
-    Write-Host "Default Gateway: $defaultGateway`n" -ForegroundColor $fcolor
+    Write-Host "Default Gateway: http://$defaultGateway`n" -ForegroundColor $fcolor
 
     $conn = Test-Connection -TargetName bing.com -Count 1 -TimeoutSeconds 2 | Select-Object Status, Latency
     if($conn.Status -ne "Success") {
         Write-Host "Connection status: $($conn.Status) ($($conn.Latency)ms)`n" -ForegroundColor $fcolor_err
+        ipconfig /all | Select-String "IPv4 Address" | ForEach-Object { $_.ToString().Split(":")[1].Trim() } | ForEach-Object { Write-Host "IPv4 $_" -ForegroundColor $fcolor_err }
     }
     else {
         Write-Host "Connection status: $($conn.Status) ($($conn.Latency)ms)`n" -ForegroundColor $fcolor
-        $ipv4 = Invoke-WebRequest https://api.ipify.org?format=json | Select-Object -ExpandProperty Content | ConvertFrom-Json
-        $ipv6 = Invoke-WebRequest https://api64.ipify.org?format=json | Select-Object -ExpandProperty Content | ConvertFrom-Json
-        Write-Host "IPv4 $($ipv4.ip)`nIPv6 $($ipv6.ip)`n" -ForegroundColor $fcolor
+        $ipv46 = Invoke-WebRequest https://api64.ipify.org?format=json | Select-Object -ExpandProperty Content | ConvertFrom-Json
+        Write-Host "IP $($ipv46.ip)`n" -ForegroundColor $fcolor
         if($speedtest)
         {
             Write-Host "Testing connection speed...`n" -ForegroundColor $fcolor
