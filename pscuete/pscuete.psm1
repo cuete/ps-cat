@@ -162,36 +162,68 @@ function Get-Ip {
 }
 Export-ModuleMember -Function Get-Ip
 
-# Finds a sgtring in a file or directory name
-# Optionally searches within files
+# Finds a string in file/directory names and optionally within file contents
 function Find-Text
 {
+    [CmdletBinding()]
     Param (
-        [string]$path,
-        [string]$filter,
-        [string]$text,
-        [switch]$e = $false #extended - within file text
-        )
-    Write-Host "Usage: find -text {text} -path {path} -filter {filter}" -ForegroundColor $fcolor
-    if($path -eq $null -or $path -eq "")
-    {
-        $path = Get-Location | Select-Object -ExpandProperty Path
+        [Parameter(Mandatory=$true, Position=0)]
+        [string]$Text,
+        [Parameter(Position=1)]
+        [string]$Path = (Get-Location).Path,
+        [string]$Filter = "*",
+        [Alias('e', 'Extended')]
+        [switch]$SearchContent = $false
+    )
+
+    # Validate path exists
+    if (-not (Test-Path $Path)) {
+        Write-Error "Path '$Path' does not exist."
+        return
     }
 
-    #Directory names first
-    Write-Host "Searching directory names..." -ForegroundColor $fcolor
-    Get-ChildItem $path -Recurse -Directory -Filter "*$($text)*" | Select-Object Name | Format-Table -AutoSize $_.Value
-    #| Where-Object {$_.Name -like "*$($text)*"} 
+    # Define common exclusions
+    $excludedExtensions = @('*.exe', '*.dll', '*.bin', '*.obj', '*.pdb')
 
-    #File names second
-    Write-Host "Searching file names..." -ForegroundColor $fcolor
-    Get-ChildItem $path -Recurse -File -Filter "*$($text)*"  -Exclude *.exe,*.dll | Select-Object Name | Format-Table -AutoSize $_.Value
+    try {
+        # Search directory names
+        Write-Host "Searching directory names for '$Text'..." -ForegroundColor $fcolor
+        $directoriesFound = $false
+        Get-ChildItem $Path -Recurse -Directory -Filter "*$Text*" -ErrorAction SilentlyContinue | ForEach-Object {
+            $directoriesFound = $true
+            Write-Host "Directory: $($_.Name) - $($_.FullName)" -ForegroundColor $fcolor
+        }
+        if (-not $directoriesFound) {
+            Write-Host "No directories found." -ForegroundColor Yellow
+        }
 
-    if ($e)
-    {
-        #File text third
-        Write-Host "Searching file contents..." -ForegroundColor $fcolor
-        Get-ChildItem $path -Recurse -Filter $filter -Exclude *.exe,*.dll | Select-String $text | Select-Object Path,Linenumber,Line | Format-Table -AutoSize $_.Value
+        # Search file names
+        Write-Host "Searching file names for '$Text'..." -ForegroundColor $fcolor
+        $filesFound = $false
+        Get-ChildItem $Path -Recurse -File -Filter "*$Text*" -Exclude $excludedExtensions -ErrorAction SilentlyContinue | ForEach-Object {
+            $filesFound = $true
+            Write-Host "File: $($_.Name) - $($_.FullName)" -ForegroundColor $fcolor
+        }
+        if (-not $filesFound) {
+            Write-Host "No files found." -ForegroundColor Yellow
+        }
+
+        # Search file contents if requested
+        if ($SearchContent) {
+            Write-Host "Searching file contents for '$Text'..." -ForegroundColor $fcolor
+            $contentMatchesFound = $false
+            Get-ChildItem $Path -Recurse -File -Filter $Filter -Exclude $excludedExtensions -ErrorAction SilentlyContinue |
+                Select-String $Text -ErrorAction SilentlyContinue | ForEach-Object {
+                    $contentMatchesFound = $true
+                    Write-Host "Match in $($_.Path):$($_.LineNumber) - $($_.Line.Trim())" -ForegroundColor $fcolor
+                }
+            if (-not $contentMatchesFound) {
+                Write-Host "No content matches found." -ForegroundColor Yellow
+            }
+        }
+    }
+    catch {
+        Write-Error "An error occurred during search: $($_.Exception.Message)"
     }
 }
 Export-ModuleMember -Function Find-Text
