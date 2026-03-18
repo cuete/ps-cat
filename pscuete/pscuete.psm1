@@ -353,3 +353,23 @@ function Set-DisplayScale
     $apicall::SystemParametersInfo(0x009F, $s, $null, 1) | Out-Null
 }
 Export-ModuleMember -Function Set-DisplayScale
+
+# Displays environment variables and optionally highlights matches
+function Show-Env
+{
+    Param(
+        [string]$Highlight
+    )
+    if ($Highlight) {
+        $envList = Get-ChildItem Env: | Where-Object { $_.Name -like "*$Highlight*" -or $_.Value -like "*$Highlight*" } | ForEach-Object {
+            [PSCustomObject]@{
+                Name  = "`e[33m$($_.Name)`e[0m"
+                Value = "`e[33m$($_.Value)`e[0m"
+            }
+        }
+        $envList | Format-Table -AutoSize
+    } else {
+        Get-ChildItem Env: | Select-Object Name, Value | Format-Table -AutoSize
+    }
+}
+Export-ModuleMember -Function Show-Env
