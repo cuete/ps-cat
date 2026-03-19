@@ -156,7 +156,13 @@ function Find-Text
     }
 
     # Define common exclusions
-    $excludedExtensions = @('*.exe', '*.dll', '*.bin', '*.obj', '*.pdb')
+$excludedExtensions = @('*.exe', '*.dll', '*.bin', '*.obj', '*.pdb',
+            '*.zip', '*.rar', '*.7z', '*.tar', '*.gz',
+            '*.png', '*.jpg', '*.jpeg', '*.gif', '*.bmp', '*.ico', '*.tiff', '*.webp',
+            '*.mp3', '*.mp4', '*.wav', '*.avi', '*.mov', '*.mkv', '*.flac',
+            '*.pdf', '*.doc', '*.docx', '*.xls', '*.xlsx', '*.ppt', '*.pptx',
+            '*.iso', '*.img', '*.msi', '*.lib', '*.a', '*.so', '*.dylib',
+            '*.pyc', '*.class', '*.cache')
 
     try {
         # Search directory names
