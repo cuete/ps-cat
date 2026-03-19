@@ -44,8 +44,7 @@ Export-ModuleMember -Function Show-MachineStats
 # Location query by city name needs Bing Maps API Key
 function Show-Weather {
     Param (
-        [switch]$h = $false,
-        [string]$l)
+        [switch]$h = $false)
 
     $headers = @{
         "Accept" = "application/geo+json"
@@ -56,80 +55,54 @@ function Show-Weather {
         locations =  [PSCustomObject]@()
     }
 
-    if($l) # Resquested location
+    $locationData = Get-Content "weatherlocations.json" | Out-String | ConvertFrom-Json
+    
+    $endpoint = "forecast"
+    if($h)
     {
-        $BingMapsKey = '' # Your Bing Maps API Key
-        $LocationQuery = $l
+        $endpoint += "/hourly"
+    }
 
-        $uri = "http://dev.virtualearth.net/REST/v1/Locations?query=$($LocationQuery)&key=$($BingMapsKey)"
-        $response = Invoke-RestMethod -Method Get -Uri $uri
-        $lat = $response.resourceSets.resources.point.coordinates[0]
-        $lon = $response.resourceSets.resources.point.coordinates[1]
+    $weathers = @()
 
-        $url = $url = "https://api.weather.gov/points/$($lat),$($lon)"
+    foreach($location in $locationData.locations)
+    {
+        $office = $location.office
+        $gridx = $location.gridx
+        $gridy = $location.gridy
+
+        $url = "https://api.weather.gov/gridpoints/$office/$gridx,$gridy/$endpoint"
         $weather = Invoke-RestMethod -Uri $url -Method Get -Headers $headers
-
-        $locationData.locations += [PSCustomObject]@{
-            name = $LocationQuery
-            lat = $lat
-            lon = $lon
-            gridx = $weather.properties.gridx
-            gridy = $weather.properties.gridy
-            office = $weather.properties.gridid
+        
+        $w = $weather.properties.periods[0]
+        $weatherObject = [PSCustomObject]@{
+            location = $location.name
+            when = $w.name
+            sTime = [DateTime]$w.startTime
+            eTime = [DateTime]$w.endTime
+            tF = $w.temperature
+            tC = [int][math]::Round(($w.temperature - 32) * 5 / 9, 0)
+            hum = $w.relativeHumidity.value
+            prec = $w.probabilityOfPrecipitation.value
+            windS = $w.windSpeed
+            windD = $w.windDirection
+            shortF = $w.shortForecast
+            detailedForecast = $w.detailedForecast
         }
-
+        $weathers += $weatherObject
     }
-    else # Default locations
+
+    Write-Host "`n $($weathers[0].sTime) - $($weathers[0].eTime)"
+
+    if($h)
     {
-        $locationData = Get-Content "weatherlocations.json" | Out-String | ConvertFrom-Json
+        $weathers.startTime
+        $weathers | Select-Object -Property location, tC, hum, prec, windS, windD, shortF | Format-Table -Wrap -AutoSize
     }
-    
-$endpoint = "forecast"
-if($h)
-{
-    $endpoint += "/hourly"
-}
-
-$weathers = @()
-
-foreach($location in $locationData.locations)
-{
-    $office = $location.office
-    $gridx = $location.gridx
-    $gridy = $location.gridy
-
-    $url = "https://api.weather.gov/gridpoints/$office/$gridx,$gridy/$endpoint"
-    $weather = Invoke-RestMethod -Uri $url -Method Get -Headers $headers
-    
-    $w = $weather.properties.periods[0]
-    $weatherObject = [PSCustomObject]@{
-        location = $location.name
-        when = $w.name
-        sTime = [DateTime]$w.startTime
-        eTime = [DateTime]$w.endTime
-        tF = $w.temperature
-        tC = [int][math]::Round(($w.temperature - 32) * 5 / 9, 0)
-        hum = $w.relativeHumidity.value
-        prec = $w.probabilityOfPrecipitation.value
-        windS = $w.windSpeed
-        windD = $w.windDirection
-        shortF = $w.shortForecast
-        detailedForecast = $w.detailedForecast
+    else
+    {
+        $weathers | Select-Object -Property location, when, tC, hum, prec, windS, windD, shortF, detailedForecast | Format-Table -Wrap -AutoSize
     }
-    $weathers += $weatherObject
-}
-
-Write-Host "`n $($weathers[0].sTime) - $($weathers[0].eTime)"
-
-if($h)
-{
-    $weathers.startTime
-    $weathers | Select-Object -Property location, tC, hum, prec, windS, windD, shortF | Format-Table -Wrap -AutoSize
-}
-else
-{
-    $weathers | Select-Object -Property location, when, tC, hum, prec, windS, windD, shortF, detailedForecast | Format-Table -Wrap -AutoSize
-}
 }
 Export-ModuleMember -Function Show-Weather
 
@@ -227,49 +200,6 @@ function Find-Text
     }
 }
 Export-ModuleMember -Function Find-Text
-
-# Queries the Bing API
-# Optionally selects a news filter
-function Search-Bing
-{
-    Param (
-    [Parameter(Mandatory=$true)]
-    [Alias('q')]
-    [string]$query,
-    [Parameter(Mandatory=$false)]
-    [switch]$news=$false,
-    [int]$answercount = 3
-    )
-
-    $bingEndpoint = "" #Need to create a Bing API resource on Azure
-    $apiKey = "" #Insert your API Key
-    $lang = "en-US"
-    $filter = "computation,entities"
-
-    if ($news)
-    {
-        $filter = "news"
-    }
-
-    $uri = $bingEndpoint + "?q=$query&filter=$filter&answerCount=$answercount&safeSearch=off&promote=$filter"
-
-    # Write-Host $uri
-
-    $headers = @{
-        'Ocp-Apim-Subscription-Key' = $apiKey
-        "Accept-Language" = $lang
-        "Accept" = "application/json"
-    }
-
-    $response = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers
-
-    $results = $response.webPages.value | Select-Object -First $answercount -Property name, snippet, url
-    foreach ($result in $results)
-    {
-        $result | Select-Object -Property name, snippet | Format-List
-    }
-}
-Export-ModuleMember -Function Search-Bing
 
 # Acts as a virtual clipboard for files in conjunction with Paste-File
 # copies the file path to a global variable (string list) acting as a stack
