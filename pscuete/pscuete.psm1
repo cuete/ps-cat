@@ -129,7 +129,7 @@ function Get-Ip {
         {
             Write-Host "Testing connection speed...`n" -ForegroundColor $fcolor
             # Speed test script from https://github.com/sivel/speedtest-cli
-            Invoke-Expression "python <path to script>\speedtest.py --single --simple"
+            Invoke-Expression "python ./speedtest-cli.py --single --simple"
         }
     }
 }
