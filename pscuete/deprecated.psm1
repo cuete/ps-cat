@@ -292,3 +292,46 @@ function Invoke-QueueManager
     }
 }
 Export-ModuleMember -Function Invoke-QueueManager
+
+# Queries the Bing API
+# Optionally selects a news filter
+function Search-Bing
+{
+    Param (
+    [Parameter(Mandatory=$true)]
+    [Alias('q')]
+    [string]$query,
+    [Parameter(Mandatory=$false)]
+    [switch]$news=$false,
+    [int]$answercount = 3
+    )
+
+    $bingEndpoint = "" #Need to create a Bing API resource on Azure
+    $apiKey = "" #Insert your API Key
+    $lang = "en-US"
+    $filter = "computation,entities"
+
+    if ($news)
+    {
+        $filter = "news"
+    }
+
+    $uri = $bingEndpoint + "?q=$query&filter=$filter&answerCount=$answercount&safeSearch=off&promote=$filter"
+
+    # Write-Host $uri
+
+    $headers = @{
+        'Ocp-Apim-Subscription-Key' = $apiKey
+        "Accept-Language" = $lang
+        "Accept" = "application/json"
+    }
+
+    $response = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers
+
+    $results = $response.webPages.value | Select-Object -First $answercount -Property name, snippet, url
+    foreach ($result in $results)
+    {
+        $result | Select-Object -Property name, snippet | Format-List
+    }
+}
+Export-ModuleMember -Function Search-Bing
