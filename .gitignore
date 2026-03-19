@@ -5,6 +5,7 @@
 
 # OTHER
 .vscode/
+.claude/
 
 # User-specific files
 *.rsuser

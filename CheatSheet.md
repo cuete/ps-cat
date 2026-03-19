@@ -1,3 +1,6 @@
+# Processes
+pwsh -WindowStyle hidden { your script.. }
+
 # Variables
     $array = @("value","value", 1)
 
