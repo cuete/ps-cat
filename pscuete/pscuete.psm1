@@ -309,3 +309,260 @@ function Show-Env
     }
 }
 Export-ModuleMember -Function Show-Env
+
+function Invoke-Dev {
+    [CmdletBinding()]
+    param(
+        [Parameter(Position=0)]
+        [ValidateSet('build','run')]
+        [string]$Command,
+        [switch]$BackendOnly,
+        [switch]$FrontendOnly,
+        [switch]$Docker
+    )
+
+    $Root = (Get-Location).Path
+
+    # helpers
+    function _step($m) { Write-Host "`n==> $m" -ForegroundColor Cyan }
+    function _ok($m)   { Write-Host "    $m"   -ForegroundColor Green }
+    function _warn($m) { Write-Host "    $m"   -ForegroundColor Yellow }
+    function _err($m)  { Write-Host "    ERROR: $m" -ForegroundColor Red }
+
+    # detection
+    $hasPackageJson   = Test-Path "$Root\package.json"
+    $hasRequirements  = Test-Path "$Root\requirements.txt"
+    $hasPyProject     = Test-Path "$Root\pyproject.toml"
+    $hasSetupPy       = Test-Path "$Root\setup.py"
+    $hasDockerCompose = @(Get-ChildItem "$Root\docker-compose*" -ErrorAction SilentlyContinue).Count -gt 0
+    $hasDockerfile    = Test-Path "$Root\Dockerfile"
+
+    $isPython    = $hasRequirements -or $hasPyProject -or $hasSetupPy
+    $isNode      = $hasPackageJson
+    $isFullStack = $isPython -and $isNode
+
+    # node package manager
+    function _pm {
+        if (Test-Path "$Root\yarn.lock")      { return 'yarn' }
+        if (Test-Path "$Root\pnpm-lock.yaml") { return 'pnpm' }
+        return 'npm'
+    }
+
+    # python run info: returns @{ exe; runArgs; port; type } or $null
+    function _pythonInfo {
+        $venv = "$Root\venv"
+        $py   = if (Test-Path "$venv\Scripts\python.exe") { "$venv\Scripts\python.exe" } else { 'python' }
+        $req  = if ($hasRequirements) { Get-Content "$Root\requirements.txt" -Raw } else { '' }
+
+        if ($req -match 'uvicorn') {
+            $candidates = @(
+                @{ file = 'src\main.py'; mod = 'src.main:app' },
+                @{ file = 'main.py';     mod = 'main:app'     },
+                @{ file = 'app\main.py'; mod = 'app.main:app' },
+                @{ file = 'app.py';      mod = 'app:app'      }
+            )
+            foreach ($c in $candidates) {
+                if (Test-Path "$Root\$($c.file)") {
+                    return @{ exe = $py; runArgs = "-u -m uvicorn $($c.mod) --reload --port 5000"; port = 5000; type = 'uvicorn' }
+                }
+            }
+        }
+        if ($req -match 'streamlit') {
+            foreach ($f in @('app.py', 'ui\app.py', 'streamlit_app.py')) {
+                if (Test-Path "$Root\$f") {
+                    return @{ exe = $py; runArgs = "-m streamlit run $f"; port = 8501; type = 'streamlit' }
+                }
+            }
+        }
+        foreach ($f in @('main.py', 'app.py', 'run.py', 'server.py')) {
+            if (Test-Path "$Root\$f") {
+                return @{ exe = $py; runArgs = "-u $f"; port = $null; type = 'script' }
+            }
+        }
+        return $null
+    }
+
+    # node run info: returns @{ pm; script; port }
+    function _nodeInfo {
+        $pm      = _pm
+        $pkgJson = Get-Content "$Root\package.json" -Raw | ConvertFrom-Json
+        $scripts = $pkgJson.scripts
+        $scr     = if ($scripts.dev)        { 'dev'   } `
+                   elseif ($scripts.start)  { 'start' } `
+                   else                     { $null   }
+        return @{ pm = $pm; script = $scr; port = 3000 }
+    }
+
+    # BUILD helpers
+    function _buildPython {
+        _step 'Python: virtual environment'
+        $venv = "$Root\venv"
+        if (-not (Test-Path $venv)) { python -m venv $venv; _ok 'venv created' } else { _ok 'venv exists' }
+        if (Test-Path "$venv\Scripts\Activate.ps1") { & "$venv\Scripts\Activate.ps1"; _ok 'venv activated' }
+        $pyExe = if (Test-Path "$venv\Scripts\python.exe") { "$venv\Scripts\python.exe" } else { 'python' }
+        _step 'Python: installing dependencies'
+        if ($hasRequirements) { & $pyExe -m pip install -r "$Root\requirements.txt" --quiet; _ok 'requirements.txt installed' }
+        if ($hasPyProject)    { & $pyExe -m pip install -e . --quiet;                        _ok 'pyproject.toml installed'   }
+        _step 'Python: checking .env'
+        if (-not (Test-Path "$Root\.env")) {
+            if (Test-Path "$Root\.env.example") { Copy-Item "$Root\.env.example" "$Root\.env"; _warn '.env created from .env.example — update secrets' }
+            else { _warn 'no .env.example found; create .env manually if needed' }
+        } else { _ok '.env exists' }
+    }
+
+    function _buildNode {
+        $pm = _pm
+        _step "Node ($pm): installing dependencies"
+        Push-Location $Root
+        try {
+            & $pm install; _ok 'dependencies installed'
+            $pkgJson = Get-Content "$Root\package.json" -Raw | ConvertFrom-Json
+            if ($pkgJson.scripts.build) { _step "Node ($pm): building"; & $pm run build; _ok 'build complete' }
+        } finally { Pop-Location }
+    }
+
+    # RUN helpers — spawn a new pwsh window with color-coded log output.
+    # `$_ is escaped so it evaluates in the child process, not at here-string expansion time.
+    function _runPython {
+        $info = _pythonInfo
+        if (-not $info) { _err "Could not detect Python entry point in $Root"; return }
+        $exe   = $info.exe
+        $rargs = $info.runArgs
+        $label = $info.type
+        $port  = if ($info.port) { $info.port } else { '?' }
+        $venvActivate = "$Root\venv\Scripts\Activate.ps1"
+        $script = @"
+Write-Host 'Python ($label) -> http://localhost:$port' -ForegroundColor Gray
+Write-Host 'Press Ctrl+C to stop.`n'
+Set-Location '$Root'
+if (Test-Path '$venvActivate') { & '$venvActivate' }
+& '$exe' $rargs 2>&1 | ForEach-Object {
+    if (`$_ -match 'ERROR|error:|Exception')                             { Write-Host `$_ -ForegroundColor Red }
+    elseif (`$_ -match 'WARNING|warn:')                                  { Write-Host `$_ -ForegroundColor DarkYellow }
+    elseif (`$_ -match '"/app|/assets/|\.js|\.css|\.html|\.ico|\.map')  { Write-Host `$_ -ForegroundColor Yellow }
+    else                                                                  { Write-Host `$_ -ForegroundColor Gray }
+}
+"@
+        _ok "Launching Python ($label) in new window -> http://localhost:$port"
+        Start-Process pwsh -ArgumentList '-NoProfile', '-NoExit', '-Command', $script
+    }
+
+    function _runNode {
+        $info   = _nodeInfo
+        $pm     = $info.pm
+        $scr    = $info.script
+        $port   = $info.port
+        $runCmd = if ($scr) { "$pm run $scr" } else { "$pm start" }
+        $script = @"
+Write-Host 'Node ($pm) -> http://localhost:$port' -ForegroundColor Gray
+Write-Host 'Press Ctrl+C to stop.`n'
+Set-Location '$Root'
+& $runCmd 2>&1 | ForEach-Object {
+    if (`$_ -match 'ERROR|error:|Exception')                             { Write-Host `$_ -ForegroundColor Red }
+    elseif (`$_ -match 'WARNING|warn:')                                  { Write-Host `$_ -ForegroundColor DarkYellow }
+    elseif (`$_ -match '"/app|/assets/|\.js|\.css|\.html|\.ico|\.map')  { Write-Host `$_ -ForegroundColor Yellow }
+    else                                                                  { Write-Host `$_ -ForegroundColor Gray }
+}
+"@
+        _ok "Launching Node ($pm) in new window -> http://localhost:$port"
+        Start-Process pwsh -ArgumentList '-NoProfile', '-NoExit', '-Command', $script
+        Start-Sleep -Seconds 3
+        Start-Process "http://localhost:$port"
+    }
+
+    function _buildDocker {
+        if ($hasDockerCompose) {
+            _step 'Docker Compose: building'
+            $composeFile = Get-ChildItem "$Root\docker-compose*" -ErrorAction SilentlyContinue | Select-Object -First 1
+            docker compose -f $composeFile.Name build
+            _ok 'docker compose build complete'
+        } elseif ($hasDockerfile) {
+            $imageName = (Split-Path $Root -Leaf).ToLower()
+            _step "Docker: building image '$imageName'"
+            docker build -t $imageName .
+            _ok 'docker build complete'
+        } else {
+            _err 'No Dockerfile or docker-compose.yml found'
+        }
+    }
+
+    function _runDocker {
+        if ($hasDockerCompose) {
+            _step 'Docker Compose: up'
+            $composeFile = Get-ChildItem "$Root\docker-compose*" -ErrorAction SilentlyContinue | Select-Object -First 1
+            docker compose -f $composeFile.Name up -d
+        }
+        elseif ($hasDockerfile) {
+            $imageName = (Split-Path $Root -Leaf).ToLower()
+            _step "Docker: running container '$imageName'"
+            docker run --rm -it $imageName
+        }
+        else {
+            _err 'No Dockerfile or docker-compose.yml found'
+        }
+    }
+
+    # DISPATCH
+    if ($Command -eq 'build') {
+        if ($Docker) { _buildDocker }
+        elseif ($isFullStack) {
+            if     ($FrontendOnly) { _buildNode }
+            elseif ($BackendOnly)  { _buildPython }
+            else                   { _buildPython; _buildNode }
+        }
+        elseif ($isPython) { _buildPython }
+        elseif  ($isNode)    { _buildNode }
+        else { _err "No recognizable project found in $Root" }
+        Write-Host "`nBuild complete." -ForegroundColor Green
+    }
+    elseif ($Command -eq 'run') {
+        if ($Docker) { _runDocker }
+        elseif ($isFullStack) {
+            if     ($FrontendOnly) { _runNode }
+            elseif ($BackendOnly)  { _runPython }
+            else                   { _runPython; _runNode }
+        }
+        elseif ($isPython) { _runPython }
+        elseif  ($isNode)    { _runNode }
+        else { _err "No recognizable project found in $Root" }
+    }
+    else {
+        Write-Host 'Usage: dev build|run [-BackendOnly] [-FrontendOnly] [-Docker]' -ForegroundColor Yellow
+        Write-Host '  build          Build (auto-detects: Python/Node)'             -ForegroundColor DarkGray
+        Write-Host '  run            Run in a new window (auto-detects type)'       -ForegroundColor DarkGray
+        Write-Host '  -BackendOnly   Target Python/backend only (full-stack)'       -ForegroundColor DarkGray
+        Write-Host '  -FrontendOnly  Target Node/frontend only (full-stack)'        -ForegroundColor DarkGray
+        Write-Host '  -Docker        Build/run via Docker (compose or Dockerfile)'  -ForegroundColor DarkGray
+        Write-Host "`nDetects: Python (FastAPI/uvicorn, Streamlit, plain), Node (npm/yarn/pnpm)" -ForegroundColor DarkGray
+        Write-Host "Docker:  use -Docker flag to target Dockerfile or docker-compose*.yml"        -ForegroundColor DarkGray
+    }
+}
+Export-ModuleMember -Function Invoke-Dev
+
+# Loads the remote git URL of the current repository in the default browser
+function Start-GitRepo
+{
+    try {
+        $remoteUrl = git remote get-url origin 2>$null
+        if ([string]::IsNullOrWhiteSpace($remoteUrl)) {
+            Write-Error "No remote URL found for this repository."
+            return
+        }
+        Start-Process $remoteUrl
+    }
+    catch {
+        Write-Error "Failed to open repository: $($_.Exception.Message)"
+    }
+}
+Export-ModuleMember -Function Start-GitRepo
+
+function Open-PSCuete
+{
+    try {
+        code $profile "$ENV:OneDrive\Documents\PowerShell\Modules\pscuete\pscuete.psm1"
+    }
+    catch {
+        Write-Error "Failed to open PSCuete module: $($_.Exception.Message)"
+    }
+}
+Export-ModuleMember -Function Open-PSCuete
